@@ -1,4 +1,3 @@
-# RESIDUOS MUNICIPALES GENERADOS EN EL PERÚ
 
 import pandas as pd
 import streamlit as st
