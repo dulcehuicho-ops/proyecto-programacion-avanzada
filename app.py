@@ -14,7 +14,7 @@ st.markdown(
     "residuos municipales a nivel nacional."
 )
 
-st.header("Dashboard")
+st.header("Análisis Estadístico a Nivel Nacional")
 st.markdown("---")
 
 
