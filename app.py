@@ -13,7 +13,17 @@ st.markdown(
     "Programación Avanzada - UPCH. Analiza la generación anual de "
     "residuos municipales a nivel nacional."
 )
+
+st.header("Análisis Estadístico a Nivel Nacional")
 st.markdown("---")
+
+
+def a_numero(serie):
+    s = serie.astype(str).str.strip()
+    con_ambos = s.str.contains(r"\.") & s.str.contains(",")
+    s = s.where(~con_ambos, s.str.replace(".", "", regex=False))
+    s = s.str.replace(",", ".", regex=False)
+    return pd.to_numeric(s, errors="coerce")
 
 
 @st.cache_data
@@ -24,12 +34,12 @@ def load_data():
         encoding="latin1"
     )
     for col in ["QRESIDUOS_DOM", "QRESIDUOS_NO_DOM", "QRESIDUOS_MUN"]:
-        df[col] = pd.to_numeric(
-            df[col].astype(str).str.strip().str.replace(",", ".", regex=False),
-            errors="coerce"
-        )
+        df[col] = a_numero(df[col])
     df["PERIODO"] = pd.to_numeric(df["PERIODO"], errors="coerce")
-    return df.dropna(subset=["PERIODO"])
+    df = df.dropna(subset=["PERIODO"])
+    # Corrección: en 2023 la columna QRESIDUOS_DOM viene multiplicada por 10
+    df["QRESIDUOS_DOM"] = df["QRESIDUOS_MUN"] - df["QRESIDUOS_NO_DOM"]
+    return df
 
 
 df = load_data()
@@ -48,7 +58,7 @@ dom = df_p["QRESIDUOS_DOM"].sum()
 no_dom = df_p["QRESIDUOS_NO_DOM"].sum()
 total = dom + no_dom
 
-st.header(f"Composición de los residuos municipales - {periodo}")
+st.subheader(f"Composición de los residuos municipales - {periodo}")
 
 c1, c2, c3 = st.columns(3)
 c1.metric("Total generado (t/año)", f"{total:,.0f}")
@@ -57,9 +67,9 @@ c3.metric("No domiciliarios (t/año)", f"{no_dom:,.0f}")
 
 st.markdown("---")
 
-col_graf, col_tabla = st.columns([1, 1])
+col_izq, col_centro, col_der = st.columns([1, 2, 1])
 
-with col_graf:
+with col_centro:
     fig, ax = plt.subplots(figsize=(6, 6))
     colores = ["#2E8B57", "#F4A261"]
 
@@ -86,19 +96,5 @@ with col_graf:
     st.pyplot(fig)
     plt.close(fig)
 
-with col_tabla:
-    st.subheader("Resumen nacional por año")
-    resumen = (
-        df.groupby(df["PERIODO"].astype(int))[["QRESIDUOS_DOM", "QRESIDUOS_NO_DOM"]]
-        .sum()
-        .rename(columns={
-            "QRESIDUOS_DOM": "Domiciliarios (t)",
-            "QRESIDUOS_NO_DOM": "No domiciliarios (t)"
-        })
-    )
-    resumen["Total (t)"] = resumen.sum(axis=1)
-    resumen.index.name = "Año"
-    st.dataframe(resumen.style.format("{:,.0f}"), use_container_width=True)
-
 st.markdown("---")
-st.caption("Fuente: Base de datos de residuos municipales. Elaboración propia.")
+st.caption("Fuente: Base de datos de residuos municipales. Elaboración propia.") 
