@@ -1,4 +1,3 @@
-import math
 import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
@@ -46,58 +45,75 @@ def load_data():
 
 df = load_data()
 
-resumen = df.groupby("PERIODO")[["QRESIDUOS_DOM", "QRESIDUOS_NO_DOM"]].sum()
-resumen["TOTAL"] = resumen["QRESIDUOS_DOM"] + resumen["QRESIDUOS_NO_DOM"]
+st.sidebar.header("Filtros de búsqueda")
+periodos = sorted(df["PERIODO"].unique())
+periodo = st.sidebar.selectbox(
+    "Seleccione el periodo (Año):",
+    periodos,
+    index=len(periodos) - 1
+)
 
-st.subheader("Composición de los residuos municipales por año")
+df_p = df[df["PERIODO"] == periodo]
 
-n = len(resumen)
-columnas = 4
-filas = math.ceil(n / columnas)
-colores = ["#2E8B57", "#F4A261"]
+dom = df_p["QRESIDUOS_DOM"].sum()
+no_dom = df_p["QRESIDUOS_NO_DOM"].sum()
+total = dom + no_dom
 
-fig, axes = plt.subplots(filas, columnas, figsize=(16, 4.8 * filas))
-axes = axes.flatten()
+pct_dom = dom / total * 100
+pct_no_dom = no_dom / total * 100
 
-for ax, (anio, fila) in zip(axes, resumen.iterrows()):
+st.subheader(f"Composición de los residuos municipales - {periodo}")
+
+c1, c2, c3 = st.columns(3)
+c1.metric(
+    "Total generado (t/año)",
+    f"{total:,.0f}",
+    delta="100% del total",
+    delta_color="off"
+)
+c2.metric(
+    "Domiciliarios (t/año)",
+    f"{dom:,.0f}",
+    delta=f"{pct_dom:.1f}% del total",
+    delta_color="off"
+)
+c3.metric(
+    "No domiciliarios (t/año)",
+    f"{no_dom:,.0f}",
+    delta=f"{pct_no_dom:.1f}% del total",
+    delta_color="off"
+)
+
+st.markdown("---")
+
+col_izq, col_centro, col_der = st.columns([1, 2, 1])
+
+with col_centro:
+    fig, ax = plt.subplots(figsize=(6, 6))
+    colores = ["#2E8B57", "#F4A261"]
+
     wedges, texts, autotexts = ax.pie(
-        [fila["QRESIDUOS_DOM"], fila["QRESIDUOS_NO_DOM"]],
+        [dom, no_dom],
+        labels=["Domiciliarios", "No domiciliarios"],
         colors=colores,
         autopct="%1.1f%%",
         startangle=90,
         pctdistance=0.8,
-        wedgeprops={"width": 0.4, "edgecolor": "white", "linewidth": 2},
-        textprops={"fontsize": 11}
+        wedgeprops={"width": 0.4, "edgecolor": "white", "linewidth": 3},
+        textprops={"fontsize": 12}
     )
     for t in autotexts:
         t.set_color("white")
         t.set_fontweight("bold")
 
-    ax.text(0, 0, f"Total\n{fila['TOTAL']:,.0f} t", ha="center", va="center",
-            fontsize=10, fontweight="bold", color="#333333")
-    ax.set_title(str(anio), fontsize=14, fontweight="bold", pad=8)
-    ax.set_xlabel(
-        f"Domiciliarios: {fila['QRESIDUOS_DOM']:,.0f} t\n"
-        f"No domiciliarios: {fila['QRESIDUOS_NO_DOM']:,.0f} t",
-        fontsize=10
-    )
+    ax.text(0, 0, f"{total:,.0f}\ntoneladas", ha="center", va="center",
+            fontsize=14, fontweight="bold", color="#333333")
+    ax.set_title(f"Residuos municipales del Perú ({periodo})",
+                 fontsize=15, fontweight="bold", pad=15)
     ax.axis("equal")
 
-for ax in axes[n:]:
-    ax.axis("off")
-
-fig.legend(
-    wedges,
-    ["Domiciliarios", "No domiciliarios"],
-    loc="lower center",
-    ncol=2,
-    fontsize=12,
-    frameon=False
-)
-fig.tight_layout(rect=[0, 0.04, 1, 1])
-
-st.pyplot(fig, use_container_width=True)
-plt.close(fig)
+    st.pyplot(fig)
+    plt.close(fig)
 
 st.markdown("---")
 st.caption("Fuente: Base de datos de residuos municipales. Elaboración propia.")
