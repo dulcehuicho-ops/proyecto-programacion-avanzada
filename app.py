@@ -1,4 +1,3 @@
-import math
 import unicodedata
 
 import matplotlib.pyplot as plt
@@ -47,7 +46,7 @@ def load_data():
     df["PERIODO"] = pd.to_numeric(df["PERIODO"], errors="coerce")
     df = df.dropna(subset=["PERIODO"])
     df["PERIODO"] = df["PERIODO"].astype(int)
-   
+
     df.loc[df["PERIODO"] == 2023, "QRESIDUOS_DOM"] /= 10
 
     df["DEPARTAMENTO"] = df["DEPARTAMENTO"].map(sin_tildes)
@@ -80,17 +79,10 @@ else:
         default=["LIMA"] if "LIMA" in departamentos else departamentos[:1]
     )
 
-vista = st.sidebar.radio(
-    "Tipo de vista:",
-    ["Un gráfico por departamento", "Todos en un solo gráfico"]
+escala_log = st.sidebar.checkbox(
+    "Escala logarítmica (para ver los departamentos pequeños)",
+    value=True
 )
-
-escala_log = True
-if vista == "Todos en un solo gráfico":
-    escala_log = st.sidebar.checkbox(
-        "Escala logarítmica (para ver los departamentos pequeños)",
-        value=True
-    )
 
 # ---------------- Composición del año elegido ----------------
 df_p = df[df["PERIODO"] == periodo]
@@ -176,60 +168,34 @@ else:
                   f"{ultimo['TOTAL']:,.0f}")
         k3.metric("Variación en el periodo", f"{variacion:+.1f}%")
 
-    if vista == "Un gráfico por departamento":
-        filas = math.ceil(len(seleccion) / 5)
-        fig_ev = px.line(
-            evolucion,
-            x="PERIODO",
-            y="TOTAL",
-            facet_col="DEPARTAMENTO",
-            facet_col_wrap=5,
-            markers=True,
-            labels=etiquetas,
-            color_discrete_sequence=["#2E8B57"],
-            category_orders={"DEPARTAMENTO": sorted(seleccion)}
-        )
-        fig_ev.update_traces(line=dict(width=2.5), marker=dict(size=5))
-        fig_ev.update_xaxes(showticklabels=True, dtick=5, title=None)
-        fig_ev.update_yaxes(matches=None, showticklabels=True, tickformat="~s",
-                            hoverformat=",.0f", title=None)
-        fig_ev.for_each_annotation(
-            lambda a: a.update(text=a.text.split("=")[-1])
-        )
-        fig_ev.update_layout(
-            template="plotly_white",
-            height=230 * filas + 80,
-            showlegend=False
+    fig_ev = px.line(
+        evolucion,
+        x="PERIODO",
+        y="TOTAL",
+        color="DEPARTAMENTO",
+        markers=True,
+        color_discrete_sequence=px.colors.qualitative.Alphabet,
+        labels=etiquetas
+    )
+    fig_ev.update_traces(line=dict(width=2), marker=dict(size=6))
+    fig_ev.update_xaxes(dtick=1)
+    if escala_log:
+        fig_ev.update_yaxes(
+            type="log",
+            tickvals=[20000, 50000, 100000, 200000, 500000,
+                      1000000, 2000000, 5000000],
+            tickformat=",",
+            hoverformat=",.0f"
         )
     else:
-        fig_ev = px.line(
-            evolucion,
-            x="PERIODO",
-            y="TOTAL",
-            color="DEPARTAMENTO",
-            markers=True,
-            color_discrete_sequence=px.colors.qualitative.Alphabet,
-            labels=etiquetas
-        )
-        fig_ev.update_traces(line=dict(width=2), marker=dict(size=6))
-        fig_ev.update_xaxes(dtick=1)
-        if escala_log:
-            fig_ev.update_yaxes(
-                type="log",
-                tickvals=[20000, 50000, 100000, 200000, 500000,
-                          1000000, 2000000, 5000000],
-                tickformat=",",
-                hoverformat=",.0f"
-            )
-        else:
-            fig_ev.update_yaxes(tickformat=",", hoverformat=",.0f",
-                                rangemode="tozero")
-        fig_ev.update_layout(
-            template="plotly_white",
-            hovermode="x unified" if len(seleccion) <= 6 else "closest",
-            legend_title_text="Departamento",
-            height=600
-        )
+        fig_ev.update_yaxes(tickformat=",", hoverformat=",.0f",
+                            rangemode="tozero")
+    fig_ev.update_layout(
+        template="plotly_white",
+        hovermode="x unified" if len(seleccion) <= 6 else "closest",
+        legend_title_text="Departamento",
+        height=600
+    )
 
     st.plotly_chart(fig_ev, use_container_width=True)
 
