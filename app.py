@@ -56,9 +56,6 @@ def load_data():
 df = load_data()
 departamentos = sorted(df["DEPARTAMENTO"].unique())
 
-# =====================================================================
-# BARRA LATERAL (mismo orden que las pestañas)
-# =====================================================================
 st.sidebar.header("Filtros de búsqueda")
 periodos = sorted(df["PERIODO"].unique())
 periodo = st.sidebar.selectbox(
@@ -67,7 +64,6 @@ periodo = st.sidebar.selectbox(
     index=len(periodos) - 1
 )
 
-# Datos del año elegido (se usan en la composición y en el ranking)
 df_p = df[df["PERIODO"] == periodo]
 
 ranking = (
@@ -123,9 +119,6 @@ escala_log = st.sidebar.checkbox(
     value=True
 )
 
-# =====================================================================
-# INICIO DEL CÓDIGO PARA EL GRÁFICO DE DISPERSIÓN (BARRA LATERAL)
-# =====================================================================
 st.sidebar.markdown("---")
 st.sidebar.header("Dispersión por distrito")
 
@@ -142,13 +135,7 @@ variable_y_disp = st.sidebar.selectbox(
     index=0,
     key="var_y_dispersion"
 )
-# =====================================================================
-# FIN DEL CÓDIGO PARA EL GRÁFICO DE DISPERSIÓN (BARRA LATERAL)
-# =====================================================================
 
-# =====================================================================
-# PESTAÑAS
-# =====================================================================
 tab_comp, tab_rank, tab_evo, tab_disp = st.tabs([
     "Composición por año",
     "Ranking de departamentos",
@@ -156,7 +143,6 @@ tab_comp, tab_rank, tab_evo, tab_disp = st.tabs([
     "Dispersión por distrito"
 ])
 
-# ---------------- 1. Composición del año elegido ----------------
 with tab_comp:
     dom = df_p["QRESIDUOS_DOM"].sum()
     no_dom = df_p["QRESIDUOS_NO_DOM"].sum()
@@ -206,7 +192,6 @@ with tab_comp:
         st.pyplot(fig)
         plt.close(fig)
 
-# ---------------- 2. Ranking por departamento ----------------
 with tab_rank:
     st.subheader(f"Departamentos con más residuos municipales - {periodo}")
 
@@ -254,7 +239,6 @@ with tab_rank:
 
         st.plotly_chart(fig_rank, use_container_width=True)
 
-# ---------------- 3. Evolución por departamento ----------------
 with tab_evo:
     st.subheader("Evolución histórica por departamento")
 
@@ -274,7 +258,6 @@ with tab_evo:
             "DEPARTAMENTO": "Departamento"
         }
 
-        # Indicadores cuando se elige un solo departamento
         if len(seleccion) == 1:
             serie = evolucion.sort_values("PERIODO")
             primero, ultimo = serie.iloc[0], serie.iloc[-1]
@@ -318,9 +301,6 @@ with tab_evo:
 
         st.plotly_chart(fig_ev, use_container_width=True)
 
-# =====================================================================
-# INICIO DEL CÓDIGO PARA EL GRÁFICO DE DISPERSIÓN (PESTAÑA)
-# =====================================================================
 with tab_disp:
     st.subheader(f"Gráfico de dispersión por distrito ({depto_disp}) - {periodo}")
 
@@ -375,9 +355,6 @@ with tab_disp:
         )
 
         st.plotly_chart(fig_disp, use_container_width=True)
-# =====================================================================
-# FIN DEL CÓDIGO PARA EL GRÁFICO DE DISPERSIÓN (PESTAÑA)
-# =====================================================================
 
 st.markdown("---")
 st.caption("Fuente: Base de datos de residuos municipales. Elaboración propia.")
