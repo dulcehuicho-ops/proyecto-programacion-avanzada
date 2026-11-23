@@ -34,6 +34,20 @@ def sin_tildes(texto):
     return "".join(c for c in t if not unicodedata.combining(c)).strip().upper()
 
 
+def gpc_por_nivel(datos, columna):
+    base = datos[(datos["GPC_DOM"] > 0) & (datos["POB_URBANA"] > 0)].copy()
+    base["PESO"] = base["GPC_DOM"] * base["POB_URBANA"]
+    resultado = (
+        base.groupby(columna)
+        .agg(PESO=("PESO", "sum"),
+             POB_URBANA=("POB_URBANA", "sum"),
+             RES_DOM=("QRESIDUOS_DOM", "sum"))
+        .reset_index()
+    )
+    resultado["GPC"] = resultado["PESO"] / resultado["POB_URBANA"]
+    return resultado.sort_values("GPC", ascending=False)
+
+
 @st.cache_data
 def load_data():
     df = pd.read_csv(
@@ -41,7 +55,8 @@ def load_data():
         sep=";",
         encoding="latin1"
     )
-    for col in ["QRESIDUOS_DOM", "QRESIDUOS_NO_DOM", "QRESIDUOS_MUN"]:
+    for col in ["QRESIDUOS_DOM", "QRESIDUOS_NO_DOM", "QRESIDUOS_MUN",
+                "POB_URBANA", "GPC_DOM"]:
         df[col] = a_numero(df[col])
     df["PERIODO"] = pd.to_numeric(df["PERIODO"], errors="coerce")
     df = df.dropna(subset=["PERIODO"])
@@ -49,7 +64,8 @@ def load_data():
 
     df.loc[df["PERIODO"] == 2023, "QRESIDUOS_DOM"] /= 10
 
-    df["DEPARTAMENTO"] = df["DEPARTAMENTO"].map(sin_tildes)
+    for col in ["DEPARTAMENTO", "PROVINCIA", "DISTRITO"]:
+        df[col] = df[col].map(sin_tildes)
     return df
 
 
@@ -120,27 +136,38 @@ escala_log = st.sidebar.checkbox(
 )
 
 st.sidebar.markdown("---")
-st.sidebar.header("Dispersión por distrito")
+st.sidebar.header("Generación per cápita")
 
-depto_disp = st.sidebar.selectbox(
-    "Departamento para dispersión distrital:",
-    departamentos,
-    index=departamentos.index("LIMA") if "LIMA" in departamentos else 0,
-    key="depto_dispersion"
+nivel = st.sidebar.radio(
+    "Nivel de detalle:",
+    ["Departamentos", "Provincias", "Distritos"],
+    index=0
 )
 
-variable_y_disp = st.sidebar.selectbox(
-    "Variable en el eje Y (residuos):",
-    ["Total (Domiciliarios + No domiciliarios)", "Domiciliarios", "No domiciliarios"],
-    index=0,
-    key="var_y_dispersion"
-)
+dep_pc = None
+prov_pc = None
+if nivel in ("Provincias", "Distritos"):
+    dep_pc = st.sidebar.selectbox(
+        "Departamento:",
+        departamentos,
+        index=departamentos.index("LIMA") if "LIMA" in departamentos else 0,
+        key="dep_percapita"
+    )
+if nivel == "Distritos":
+    provincias_dep = sorted(
+        df_p[df_p["DEPARTAMENTO"] == dep_pc]["PROVINCIA"].unique()
+    )
+    prov_pc = st.sidebar.selectbox(
+        "Provincia:",
+        provincias_dep,
+        key="prov_percapita"
+    )
 
-tab_comp, tab_rank, tab_evo, tab_disp = st.tabs([
+tab_comp, tab_rank, tab_evo, tab_pc = st.tabs([
     "Composición por año",
     "Ranking de departamentos",
     "Evolución por departamento",
-    "Dispersión por distrito"
+    "Generación per cápita"
 ])
 
 with tab_comp:
@@ -261,100 +288,4 @@ with tab_evo:
         if len(seleccion) == 1:
             serie = evolucion.sort_values("PERIODO")
             primero, ultimo = serie.iloc[0], serie.iloc[-1]
-            variacion = (ultimo["TOTAL"] / primero["TOTAL"] - 1) * 100
-
-            k1, k2, k3 = st.columns(3)
-            k1.metric(f"Residuos {int(primero['PERIODO'])} (t)",
-                      f"{primero['TOTAL']:,.0f}")
-            k2.metric(f"Residuos {int(ultimo['PERIODO'])} (t)",
-                      f"{ultimo['TOTAL']:,.0f}")
-            k3.metric("Variación en el periodo", f"{variacion:+.1f}%")
-
-        fig_ev = px.line(
-            evolucion,
-            x="PERIODO",
-            y="TOTAL",
-            color="DEPARTAMENTO",
-            markers=True,
-            color_discrete_sequence=px.colors.qualitative.Alphabet,
-            labels=etiquetas
-        )
-        fig_ev.update_traces(line=dict(width=2), marker=dict(size=6))
-        fig_ev.update_xaxes(dtick=1)
-        if escala_log:
-            fig_ev.update_yaxes(
-                type="log",
-                tickvals=[20000, 50000, 100000, 200000, 500000,
-                          1000000, 2000000, 5000000],
-                tickformat=",",
-                hoverformat=",.0f"
-            )
-        else:
-            fig_ev.update_yaxes(tickformat=",", hoverformat=",.0f",
-                                rangemode="tozero")
-        fig_ev.update_layout(
-            template="plotly_white",
-            hovermode="x unified" if len(seleccion) <= 6 else "closest",
-            legend_title_text="Departamento",
-            height=600
-        )
-
-        st.plotly_chart(fig_ev, use_container_width=True)
-
-with tab_disp:
-    st.subheader(f"Gráfico de dispersión por distrito ({depto_disp}) - {periodo}")
-
-    df_disp = df_p[df_p["DEPARTAMENTO"] == depto_disp].copy()
-    df_disp["POB_TOTAL_NUM"] = a_numero(df_disp["POB_TOTAL"])
-    df_disp["TOTAL_DIST"] = df_disp["QRESIDUOS_DOM"] + df_disp["QRESIDUOS_NO_DOM"]
-
-    if variable_y_disp == "Domiciliarios":
-        col_y = "QRESIDUOS_DOM"
-        etiqueta_y = "Residuos domiciliarios (toneladas)"
-    elif variable_y_disp == "No domiciliarios":
-        col_y = "QRESIDUOS_NO_DOM"
-        etiqueta_y = "Residuos no domiciliarios (toneladas)"
-    else:
-        col_y = "TOTAL_DIST"
-        etiqueta_y = "Residuos totales (toneladas)"
-
-    df_disp = df_disp.dropna(subset=["POB_TOTAL_NUM", col_y])
-
-    if df_disp.empty:
-        st.info("No hay datos distritales disponibles para el filtro seleccionado.")
-    else:
-        fig_disp = px.scatter(
-            df_disp,
-            x="POB_TOTAL_NUM",
-            y=col_y,
-            color="PROVINCIA" if "PROVINCIA" in df_disp.columns else None,
-            hover_name="DISTRITO" if "DISTRITO" in df_disp.columns else None,
-            hover_data={
-                "POB_TOTAL_NUM": ":,.0f",
-                col_y: ":,.1f",
-                "QRESIDUOS_DOM": ":,.1f",
-                "QRESIDUOS_NO_DOM": ":,.1f",
-                "TOTAL_DIST": ":,.1f"
-            },
-            labels={
-                "POB_TOTAL_NUM": "Población total (habitantes)",
-                col_y: etiqueta_y,
-                "PROVINCIA": "Provincia",
-                "QRESIDUOS_DOM": "Domiciliarios (t)",
-                "QRESIDUOS_NO_DOM": "No domiciliarios (t)",
-                "TOTAL_DIST": "Total residuos (t)"
-            },
-            title=f"Relación entre población y residuos por distrito ({depto_disp}, {periodo})"
-        )
-        fig_disp.update_traces(marker=dict(size=9, opacity=0.8, line=dict(width=1, color="white")))
-        fig_disp.update_xaxes(tickformat=",", hoverformat=",.0f")
-        fig_disp.update_yaxes(tickformat=",", hoverformat=",.1f")
-        fig_disp.update_layout(
-            template="plotly_white",
-            height=550
-        )
-
-        st.plotly_chart(fig_disp, use_container_width=True)
-
-st.markdown("---")
-st.caption("Fuente: Base de datos de residuos municipales. Elaboración propia.")
+            variacion =
