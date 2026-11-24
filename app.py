@@ -17,7 +17,7 @@ st.markdown(
     "residuos municipales en el Perú entre 2014 y 2024."
 )
 st.markdown(
-    "**Objetivo:** identificar cómo se distribuyen y cómo han cambiado los "
+    "**Objetivo:** Identificar cómo se distribuyen y cómo han cambiado los "
     "residuos municipales por departamento, provincia y distrito, y comparar "
     "cuánto genera cada habitante, para apoyar la comprensión del problema "
     "de la gestión de residuos en el país."
