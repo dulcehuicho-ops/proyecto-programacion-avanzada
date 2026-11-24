@@ -14,7 +14,13 @@ st.title("Residuos Municipales en el Perú")
 st.markdown(
     "Aplicación interactiva desarrollada para el curso de "
     "Programación Avanzada - UPCH. Analiza la generación anual de "
-    "residuos municipales a nivel nacional."
+    "residuos municipales en el Perú entre 2014 y 2024."
+)
+st.markdown(
+    "**Objetivo:** identificar cómo se distribuyen y cómo han cambiado los "
+    "residuos municipales por departamento, provincia y distrito, y comparar "
+    "cuánto genera cada habitante, para apoyar la comprensión del problema "
+    "de la gestión de residuos en el país."
 )
 
 st.header("Análisis Estadístico a Nivel Nacional")
