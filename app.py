@@ -196,6 +196,11 @@ with tab_comp:
     pct_no_dom = no_dom / total * 100
 
     st.subheader(f"Composición de los residuos municipales - {periodo}")
+    st.caption(
+        "Muestra qué porcentaje de los residuos del año elegido es domiciliario "
+        "y cuál no domiciliario. En este archivo la proporción es de unos 70% "
+        "y 30% todos los años."
+    )
 
     c1, c2, c3 = st.columns(3)
     c1.metric("Total generado (t/año)", f"{total:,.0f}",
@@ -238,6 +243,10 @@ with tab_comp:
 
 with tab_rank:
     st.subheader(f"Departamentos con más residuos municipales - {periodo}")
+    st.caption(
+        "Compara cuántas toneladas generó cada departamento en el año elegido. "
+        "Los 10 primeros se resaltan en verde oscuro."
+    )
 
     if mostrar == "Todos":
         datos_rank = ranking
@@ -285,6 +294,11 @@ with tab_rank:
 
 with tab_evo:
     st.subheader("Evolución histórica por departamento")
+    st.caption(
+        f"Muestra cómo cambió el total de residuos de cada departamento entre "
+        f"{df['PERIODO'].min()} y {df['PERIODO'].max()}. Con la escala "
+        f"logarítmica (barra lateral) se distinguen mejor los departamentos pequeños."
+    )
 
     if not seleccion:
         st.info("Seleccione al menos un departamento en la barra lateral.")
@@ -347,6 +361,10 @@ with tab_evo:
 
 with tab_disp:
     st.subheader(f"Gráfico de dispersión por distrito ({depto_disp}) - {periodo}")
+    st.caption(
+        "Cada punto es un distrito del departamento elegido: a más población, "
+        "suele haber más residuos. El color indica la provincia."
+    )
 
     df_disp = df_p[df_p["DEPARTAMENTO"] == depto_disp].copy()
     df_disp["POB_TOTAL_NUM"] = a_numero(df_disp["POB_TOTAL"])
@@ -418,8 +436,8 @@ with tab_pc:
 
     st.subheader(titulo)
     st.caption(
-        "Kilogramos de residuos domiciliarios por habitante al día, "
-        "calculados sobre la población urbana."
+        "Kilogramos de residuos domiciliarios por habitante urbano al día. "
+        "La línea roja marca el promedio nacional."
     )
 
     pc = gpc_por_nivel(datos_nivel, columna)
