@@ -18,13 +18,13 @@ st.markdown("""
         --verde-profundo: #174D36;
         --verde-principal: #2E8B57;
         --verde-suave: #E8F2EC;
-        --fondo: #F5F8F6;
+        --fondo: #FFFFFF;
         --texto: #26352D;
         --borde: #DCE7DF;
     }
 
     .stApp {
-        background-color: #F5F8F6;
+        background-color: #FFFFFF;
         color: #26352D;
     }
 
@@ -51,17 +51,8 @@ st.markdown("""
         color: #52645A;
     }
 
-    .intro-label {
-        color: #2E8B57;
-        font-size: 0.76rem;
-        font-weight: 750;
-        letter-spacing: 0.13em;
-        text-transform: uppercase;
-        margin-bottom: 0.35rem;
-    }
-
     [data-testid="stSidebar"] {
-        background-color: #EDF4EF;
+        background-color: #FFFFFF;
         border-right: 1px solid #DCE7DF;
     }
 
@@ -143,15 +134,9 @@ st.markdown("""
         font-size: 0.83rem;
         line-height: 1.5;
     }
-
 </style>
 """, unsafe_allow_html=True)
 
-
-st.markdown(
-    '<div class="intro-label">OBSERVATORIO AMBIENTAL · PERÚ</div>',
-    unsafe_allow_html=True
-)
 
 st.title("Residuos Municipales en el Perú")
 
@@ -938,3 +923,4 @@ st.markdown("---")
 st.caption(
     "Fuente: Base de datos de residuos municipales. Elaboración propia."
 )
+
