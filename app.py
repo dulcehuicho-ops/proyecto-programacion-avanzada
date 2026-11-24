@@ -288,4 +288,114 @@ with tab_evo:
         if len(seleccion) == 1:
             serie = evolucion.sort_values("PERIODO")
             primero, ultimo = serie.iloc[0], serie.iloc[-1]
-            variacion =
+            variacion = (ultimo["TOTAL"] / primero["TOTAL"] - 1) * 100
+
+            k1, k2, k3 = st.columns(3)
+            k1.metric(f"Residuos {int(primero['PERIODO'])} (t)",
+                      f"{primero['TOTAL']:,.0f}")
+            k2.metric(f"Residuos {int(ultimo['PERIODO'])} (t)",
+                      f"{ultimo['TOTAL']:,.0f}")
+            k3.metric("Variación en el periodo", f"{variacion:+.1f}%")
+
+        fig_ev = px.line(
+            evolucion,
+            x="PERIODO",
+            y="TOTAL",
+            color="DEPARTAMENTO",
+            markers=True,
+            color_discrete_sequence=px.colors.qualitative.Alphabet,
+            labels=etiquetas
+        )
+        fig_ev.update_traces(line=dict(width=2), marker=dict(size=6))
+        fig_ev.update_xaxes(dtick=1)
+        if escala_log:
+            fig_ev.update_yaxes(
+                type="log",
+                tickvals=[20000, 50000, 100000, 200000, 500000,
+                          1000000, 2000000, 5000000],
+                tickformat=",",
+                hoverformat=",.0f"
+            )
+        else:
+            fig_ev.update_yaxes(tickformat=",", hoverformat=",.0f",
+                                rangemode="tozero")
+        fig_ev.update_layout(
+            template="plotly_white",
+            hovermode="x unified" if len(seleccion) <= 6 else "closest",
+            legend_title_text="Departamento",
+            height=600
+        )
+
+        st.plotly_chart(fig_ev, use_container_width=True)
+
+with tab_pc:
+    if nivel == "Departamentos":
+        titulo = f"Generación per cápita domiciliaria por departamento - {periodo}"
+        datos_nivel = df_p
+        columna = "DEPARTAMENTO"
+    elif nivel == "Provincias":
+        titulo = f"Generación per cápita domiciliaria por provincia de {dep_pc} - {periodo}"
+        datos_nivel = df_p[df_p["DEPARTAMENTO"] == dep_pc]
+        columna = "PROVINCIA"
+    else:
+        titulo = (f"Generación per cápita domiciliaria por distrito de "
+                  f"{prov_pc} ({dep_pc}) - {periodo}")
+        datos_nivel = df_p[(df_p["DEPARTAMENTO"] == dep_pc)
+                           & (df_p["PROVINCIA"] == prov_pc)]
+        columna = "DISTRITO"
+
+    st.subheader(titulo)
+    st.caption(
+        "Kilogramos de residuos domiciliarios por habitante al día, "
+        "calculados sobre la población urbana."
+    )
+
+    pc = gpc_por_nivel(datos_nivel, columna)
+    nacional = gpc_por_nivel(df_p.assign(NACIONAL="Perú"), "NACIONAL")["GPC"].iloc[0]
+
+    if pc.empty:
+        st.info("No hay datos de generación per cápita para esta selección.")
+    else:
+        pc["COMPARACION"] = pc["GPC"].apply(
+            lambda v: "Sobre el promedio nacional" if v >= nacional
+            else "Bajo el promedio nacional"
+        )
+        pc["ETIQUETA"] = pc["GPC"].map("{:.2f}".format)
+
+        fig_pc = px.bar(
+            pc,
+            x="GPC",
+            y=columna,
+            orientation="h",
+            color="COMPARACION",
+            text="ETIQUETA",
+            color_discrete_map={"Sobre el promedio nacional": "#2E8B57",
+                                "Bajo el promedio nacional": "#A8D5BA"},
+            category_orders={columna: pc[columna].tolist()},
+            hover_data={"COMPARACION": False, "ETIQUETA": False,
+                        "GPC": ":.2f", "POB_URBANA": ":,.0f",
+                        "RES_DOM": ":,.0f"},
+            labels={"GPC": "kg por habitante al día", columna: "",
+                    "COMPARACION": "", "POB_URBANA": "Población urbana",
+                    "RES_DOM": "Residuos domiciliarios (t)"}
+        )
+        fig_pc.update_traces(textposition="outside", cliponaxis=False)
+        fig_pc.add_vline(
+            x=nacional,
+            line_dash="dash",
+            line_color="#C0392B",
+            annotation_text=f"Promedio nacional: {nacional:.2f}",
+            annotation_position="bottom right"
+        )
+        fig_pc.update_xaxes(range=[0, max(pc["GPC"].max(), nacional) * 1.2])
+        fig_pc.update_layout(
+            template="plotly_white",
+            height=max(350, 30 * len(pc) + 140),
+            legend=dict(orientation="h", y=1.02, x=0.5,
+                        xanchor="center", yanchor="bottom", title_text="")
+        )
+
+        st.plotly_chart(fig_pc, use_container_width=True)
+
+st.markdown("---")
+st.caption("Fuente: Base de datos de residuos municipales. Elaboración propia.")
