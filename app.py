@@ -64,8 +64,7 @@ def load_data():
 
     df.loc[df["PERIODO"] == 2023, "QRESIDUOS_DOM"] /= 10
 
-    for col in ["DEPARTAMENTO", "PROVINCIA", "DISTRITO"]:
-        df[col] = df[col].map(sin_tildes)
+    df["DEPARTAMENTO"] = df["DEPARTAMENTO"].map(sin_tildes)
     return df
 
 
@@ -136,6 +135,23 @@ escala_log = st.sidebar.checkbox(
 )
 
 st.sidebar.markdown("---")
+st.sidebar.header("Dispersión por distrito")
+
+depto_disp = st.sidebar.selectbox(
+    "Departamento para dispersión distrital:",
+    departamentos,
+    index=departamentos.index("LIMA") if "LIMA" in departamentos else 0,
+    key="depto_dispersion"
+)
+
+variable_y_disp = st.sidebar.selectbox(
+    "Variable en el eje Y (residuos):",
+    ["Total (Domiciliarios + No domiciliarios)", "Domiciliarios", "No domiciliarios"],
+    index=0,
+    key="var_y_dispersion"
+)
+
+st.sidebar.markdown("---")
 st.sidebar.header("Generación per cápita")
 
 nivel = st.sidebar.radio(
@@ -163,10 +179,11 @@ if nivel == "Distritos":
         key="prov_percapita"
     )
 
-tab_comp, tab_rank, tab_evo, tab_pc = st.tabs([
+tab_comp, tab_rank, tab_evo, tab_disp, tab_pc = st.tabs([
     "Composición por año",
     "Ranking de departamentos",
     "Evolución por departamento",
+    "Dispersión por distrito",
     "Generación per cápita"
 ])
 
@@ -327,6 +344,61 @@ with tab_evo:
         )
 
         st.plotly_chart(fig_ev, use_container_width=True)
+
+with tab_disp:
+    st.subheader(f"Gráfico de dispersión por distrito ({depto_disp}) - {periodo}")
+
+    df_disp = df_p[df_p["DEPARTAMENTO"] == depto_disp].copy()
+    df_disp["POB_TOTAL_NUM"] = a_numero(df_disp["POB_TOTAL"])
+    df_disp["TOTAL_DIST"] = df_disp["QRESIDUOS_DOM"] + df_disp["QRESIDUOS_NO_DOM"]
+
+    if variable_y_disp == "Domiciliarios":
+        col_y = "QRESIDUOS_DOM"
+        etiqueta_y = "Residuos domiciliarios (toneladas)"
+    elif variable_y_disp == "No domiciliarios":
+        col_y = "QRESIDUOS_NO_DOM"
+        etiqueta_y = "Residuos no domiciliarios (toneladas)"
+    else:
+        col_y = "TOTAL_DIST"
+        etiqueta_y = "Residuos totales (toneladas)"
+
+    df_disp = df_disp.dropna(subset=["POB_TOTAL_NUM", col_y])
+
+    if df_disp.empty:
+        st.info("No hay datos distritales disponibles para el filtro seleccionado.")
+    else:
+        fig_disp = px.scatter(
+            df_disp,
+            x="POB_TOTAL_NUM",
+            y=col_y,
+            color="PROVINCIA" if "PROVINCIA" in df_disp.columns else None,
+            hover_name="DISTRITO" if "DISTRITO" in df_disp.columns else None,
+            hover_data={
+                "POB_TOTAL_NUM": ":,.0f",
+                col_y: ":,.1f",
+                "QRESIDUOS_DOM": ":,.1f",
+                "QRESIDUOS_NO_DOM": ":,.1f",
+                "TOTAL_DIST": ":,.1f"
+            },
+            labels={
+                "POB_TOTAL_NUM": "Población total (habitantes)",
+                col_y: etiqueta_y,
+                "PROVINCIA": "Provincia",
+                "QRESIDUOS_DOM": "Domiciliarios (t)",
+                "QRESIDUOS_NO_DOM": "No domiciliarios (t)",
+                "TOTAL_DIST": "Total residuos (t)"
+            },
+            title=f"Relación entre población y residuos por distrito ({depto_disp}, {periodo})"
+        )
+        fig_disp.update_traces(marker=dict(size=9, opacity=0.8, line=dict(width=1, color="white")))
+        fig_disp.update_xaxes(tickformat=",", hoverformat=",.0f")
+        fig_disp.update_yaxes(tickformat=",", hoverformat=",.1f")
+        fig_disp.update_layout(
+            template="plotly_white",
+            height=550
+        )
+
+        st.plotly_chart(fig_disp, use_container_width=True)
 
 with tab_pc:
     if nivel == "Departamentos":
