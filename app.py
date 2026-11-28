@@ -70,124 +70,72 @@ def load_data():
 
 df = load_data()
 departamentos = sorted(df["DEPARTAMENTO"].unique())
-
-st.sidebar.header("Filtros de búsqueda")
 periodos = sorted(df["PERIODO"].unique())
-periodo = st.sidebar.selectbox(
-    "Seleccione el periodo (Año):",
-    periodos,
-    index=len(periodos) - 1
-)
+lima = ["LIMA"] if "LIMA" in departamentos else departamentos[:1]
 
-df_p = df[df["PERIODO"] == periodo]
+# ------------------------------------------------------------------
+# Para que cada pestaña recuerde sus filtros al cambiar de pestaña
+# ------------------------------------------------------------------
+CLAVES = [
+    "seccion",
+    "per_comp",
+    "per_rank", "mostrar", "deps_rank",
+    "todos_evo", "deps_evo", "log_evo",
+    "per_disp", "deps_disp", "var_disp",
+    "per_pc", "nivel_pc", "dep_pc_dep", "dep_pc_otros", "prov_pc",
+]
+for k in CLAVES:
+    if k in st.session_state:
+        st.session_state[k] = st.session_state[k]
 
-ranking = (
-    df_p.assign(TOTAL=df_p["QRESIDUOS_DOM"] + df_p["QRESIDUOS_NO_DOM"])
-    .groupby("DEPARTAMENTO")["TOTAL"]
-    .sum()
-    .sort_values(ascending=False)
-    .reset_index()
-)
-ranking["PUESTO"] = range(1, len(ranking) + 1)
-ranking["PORCENTAJE"] = ranking["TOTAL"] / ranking["TOTAL"].sum() * 100
-ranking["GRUPO"] = ranking["PUESTO"].apply(
-    lambda p: "Top 10" if p <= 10 else "Otros departamentos"
-)
-ranking["ETIQUETA"] = ranking.apply(
-    lambda r: f"{r['TOTAL']:,.0f} t ({r['PORCENTAJE']:.1f}%)", axis=1
-)
 
-st.sidebar.markdown("---")
-st.sidebar.header("Ranking por departamento")
+def iniciar(clave, valor):
+    if clave not in st.session_state:
+        st.session_state[clave] = valor
 
-mostrar = st.sidebar.radio(
-    "Departamentos a mostrar:",
-    ["Top 5", "Todos", "Elegir departamentos"],
-    index=0
-)
 
-elegidos_rank = []
-if mostrar == "Elegir departamentos":
-    elegidos_rank = st.sidebar.multiselect(
-        "Elija los departamentos del ranking:",
-        departamentos,
-        default=sorted(ranking.head(10)["DEPARTAMENTO"].tolist()),
-        key="deptos_ranking"
-    )
+def elegir_uno(titulo, opciones, clave, inicial):
+    iniciar(clave, inicial)
+    return st.sidebar.selectbox(titulo, opciones, key=clave)
 
-st.sidebar.markdown("---")
-st.sidebar.header("Evolución por departamento")
 
-todos = st.sidebar.checkbox("Seleccionar todos los departamentos", value=True)
-if todos:
-    seleccion = departamentos
-else:
-    seleccion = st.sidebar.multiselect(
-        "Elija los departamentos:",
-        departamentos,
-        default=["LIMA"] if "LIMA" in departamentos else departamentos[:1],
-        key="deptos_evolucion"
-    )
+def elegir_varios(titulo, opciones, clave, inicial):
+    iniciar(clave, inicial)
+    # quita lo que ya no existe en las opciones
+    st.session_state[clave] = [x for x in st.session_state[clave] if x in opciones]
+    return st.sidebar.multiselect(titulo, opciones, key=clave)
 
-escala_log = st.sidebar.checkbox(
-    "Escala logarítmica (para ver los departamentos pequeños)",
-    value=True
-)
 
-st.sidebar.markdown("---")
-st.sidebar.header("Dispersión por distrito")
+def nombres(lista):
+    if len(lista) <= 3:
+        return ", ".join(lista)
+    return f"{len(lista)} seleccionados"
 
-depto_disp = st.sidebar.selectbox(
-    "Departamento para dispersión distrital:",
-    departamentos,
-    index=departamentos.index("LIMA") if "LIMA" in departamentos else 0,
-    key="depto_dispersion"
-)
 
-variable_y_disp = st.sidebar.selectbox(
-    "Variable en el eje Y (residuos):",
-    ["Total (Domiciliarios + No domiciliarios)", "Domiciliarios", "No domiciliarios"],
-    index=0,
-    key="var_y_dispersion"
-)
-
-st.sidebar.markdown("---")
-st.sidebar.header("Generación per cápita")
-
-nivel = st.sidebar.radio(
-    "Nivel de detalle:",
-    ["Departamentos", "Provincias", "Distritos"],
-    index=0
-)
-
-dep_pc = None
-prov_pc = None
-if nivel in ("Provincias", "Distritos"):
-    dep_pc = st.sidebar.selectbox(
-        "Departamento:",
-        departamentos,
-        index=departamentos.index("LIMA") if "LIMA" in departamentos else 0,
-        key="dep_percapita"
-    )
-if nivel == "Distritos":
-    provincias_dep = sorted(
-        df_p[df_p["DEPARTAMENTO"] == dep_pc]["PROVINCIA"].unique()
-    )
-    prov_pc = st.sidebar.selectbox(
-        "Provincia:",
-        provincias_dep,
-        key="prov_percapita"
-    )
-
-tab_comp, tab_rank, tab_evo, tab_disp, tab_pc = st.tabs([
+# ------------------------------------------------------------------
+# Menú de pestañas (el filtro de la izquierda cambia según la pestaña)
+# ------------------------------------------------------------------
+SECCIONES = [
     "Composición por año",
     "Ranking de departamentos",
     "Evolución por departamento",
     "Dispersión por distrito",
     "Generación per cápita"
-])
+]
+iniciar("seccion", SECCIONES[0])
+seccion = st.radio("Seleccione la pestaña:", SECCIONES,
+                   horizontal=True, key="seccion")
+st.markdown("---")
 
-with tab_comp:
+# ==================================================================
+# 1. COMPOSICIÓN POR AÑO
+# ==================================================================
+if seccion == "Composición por año":
+    st.sidebar.header("Filtros: Composición")
+    periodo = elegir_uno("Seleccione el periodo (Año):", periodos,
+                         "per_comp", periodos[-1])
+    df_p = df[df["PERIODO"] == periodo]
+
     dom = df_p["QRESIDUOS_DOM"].sum()
     no_dom = df_p["QRESIDUOS_NO_DOM"].sum()
     total = dom + no_dom
@@ -241,7 +189,47 @@ with tab_comp:
         st.pyplot(fig)
         plt.close(fig)
 
-with tab_rank:
+# ==================================================================
+# 2. RANKING DE DEPARTAMENTOS
+# ==================================================================
+elif seccion == "Ranking de departamentos":
+    st.sidebar.header("Filtros: Ranking")
+    periodo = elegir_uno("Seleccione el periodo (Año):", periodos,
+                         "per_rank", periodos[-1])
+    df_p = df[df["PERIODO"] == periodo]
+
+    ranking = (
+        df_p.assign(TOTAL=df_p["QRESIDUOS_DOM"] + df_p["QRESIDUOS_NO_DOM"])
+        .groupby("DEPARTAMENTO")["TOTAL"]
+        .sum()
+        .sort_values(ascending=False)
+        .reset_index()
+    )
+    ranking["PUESTO"] = range(1, len(ranking) + 1)
+    ranking["PORCENTAJE"] = ranking["TOTAL"] / ranking["TOTAL"].sum() * 100
+    ranking["GRUPO"] = ranking["PUESTO"].apply(
+        lambda p: "Top 10" if p <= 10 else "Otros departamentos"
+    )
+    ranking["ETIQUETA"] = ranking.apply(
+        lambda r: f"{r['TOTAL']:,.0f} t ({r['PORCENTAJE']:.1f}%)", axis=1
+    )
+
+    iniciar("mostrar", "Top 5")
+    mostrar = st.sidebar.radio(
+        "Departamentos a mostrar:",
+        ["Top 5", "Todos", "Elegir departamentos"],
+        key="mostrar"
+    )
+
+    elegidos_rank = []
+    if mostrar == "Elegir departamentos":
+        elegidos_rank = elegir_varios(
+            "Elija los departamentos del ranking:",
+            departamentos,
+            "deps_rank",
+            sorted(ranking.head(10)["DEPARTAMENTO"].tolist())
+        )
+
     st.subheader(f"Departamentos con más residuos municipales - {periodo}")
     st.caption(
         "Compara cuántas toneladas generó cada departamento en el año elegido. "
@@ -292,7 +280,27 @@ with tab_rank:
 
         st.plotly_chart(fig_rank, use_container_width=True)
 
-with tab_evo:
+# ==================================================================
+# 3. EVOLUCIÓN POR DEPARTAMENTO
+# ==================================================================
+elif seccion == "Evolución por departamento":
+    st.sidebar.header("Filtros: Evolución")
+
+    iniciar("todos_evo", True)
+    todos = st.sidebar.checkbox("Seleccionar todos los departamentos",
+                                key="todos_evo")
+    if todos:
+        seleccion = departamentos
+    else:
+        seleccion = elegir_varios("Elija los departamentos:", departamentos,
+                                  "deps_evo", lima)
+
+    iniciar("log_evo", True)
+    escala_log = st.sidebar.checkbox(
+        "Escala logarítmica (para ver los departamentos pequeños)",
+        key="log_evo"
+    )
+
     st.subheader("Evolución histórica por departamento")
     st.caption(
         f"Muestra cómo cambió el total de residuos de cada departamento entre "
@@ -359,80 +367,140 @@ with tab_evo:
 
         st.plotly_chart(fig_ev, use_container_width=True)
 
-with tab_disp:
-    st.subheader(f"Gráfico de dispersión por distrito ({depto_disp}) - {periodo}")
-    st.caption(
-        "Cada punto es un distrito del departamento elegido: a más población, "
-        "suele haber más residuos. El color indica la provincia."
+# ==================================================================
+# 4. DISPERSIÓN POR DISTRITO
+# ==================================================================
+elif seccion == "Dispersión por distrito":
+    st.sidebar.header("Filtros: Dispersión")
+    periodo = elegir_uno("Seleccione el periodo (Año):", periodos,
+                         "per_disp", periodos[-1])
+    df_p = df[df["PERIODO"] == periodo]
+
+    deps_disp = elegir_varios("Departamentos para la dispersión:",
+                              departamentos, "deps_disp", lima)
+
+    variable_y_disp = elegir_uno(
+        "Variable en el eje Y (residuos):",
+        ["Total (Domiciliarios + No domiciliarios)", "Domiciliarios",
+         "No domiciliarios"],
+        "var_disp",
+        "Total (Domiciliarios + No domiciliarios)"
     )
 
-    df_disp = df_p[df_p["DEPARTAMENTO"] == depto_disp].copy()
-    df_disp["POB_TOTAL_NUM"] = a_numero(df_disp["POB_TOTAL"])
-    df_disp["TOTAL_DIST"] = df_disp["QRESIDUOS_DOM"] + df_disp["QRESIDUOS_NO_DOM"]
+    st.subheader(f"Gráfico de dispersión por distrito ({nombres(deps_disp)}) - {periodo}")
+    st.caption(
+        "Cada punto es un distrito de los departamentos elegidos: a más población, "
+        "suele haber más residuos. El color indica la provincia "
+        "(o el departamento si elige más de uno)."
+    )
 
-    if variable_y_disp == "Domiciliarios":
-        col_y = "QRESIDUOS_DOM"
-        etiqueta_y = "Residuos domiciliarios (toneladas)"
-    elif variable_y_disp == "No domiciliarios":
-        col_y = "QRESIDUOS_NO_DOM"
-        etiqueta_y = "Residuos no domiciliarios (toneladas)"
+    if not deps_disp:
+        st.info("Elija al menos un departamento en la barra lateral.")
     else:
-        col_y = "TOTAL_DIST"
-        etiqueta_y = "Residuos totales (toneladas)"
+        df_disp = df_p[df_p["DEPARTAMENTO"].isin(deps_disp)].copy()
+        df_disp["POB_TOTAL_NUM"] = a_numero(df_disp["POB_TOTAL"])
+        df_disp["TOTAL_DIST"] = df_disp["QRESIDUOS_DOM"] + df_disp["QRESIDUOS_NO_DOM"]
 
-    df_disp = df_disp.dropna(subset=["POB_TOTAL_NUM", col_y])
+        if variable_y_disp == "Domiciliarios":
+            col_y = "QRESIDUOS_DOM"
+            etiqueta_y = "Residuos domiciliarios (toneladas)"
+        elif variable_y_disp == "No domiciliarios":
+            col_y = "QRESIDUOS_NO_DOM"
+            etiqueta_y = "Residuos no domiciliarios (toneladas)"
+        else:
+            col_y = "TOTAL_DIST"
+            etiqueta_y = "Residuos totales (toneladas)"
 
-    if df_disp.empty:
-        st.info("No hay datos distritales disponibles para el filtro seleccionado.")
+        df_disp = df_disp.dropna(subset=["POB_TOTAL_NUM", col_y])
+
+        if df_disp.empty:
+            st.info("No hay datos distritales disponibles para el filtro seleccionado.")
+        else:
+            if len(deps_disp) == 1 and "PROVINCIA" in df_disp.columns:
+                col_color = "PROVINCIA"
+            else:
+                col_color = "DEPARTAMENTO"
+
+            fig_disp = px.scatter(
+                df_disp,
+                x="POB_TOTAL_NUM",
+                y=col_y,
+                color=col_color,
+                hover_name="DISTRITO" if "DISTRITO" in df_disp.columns else None,
+                hover_data={
+                    "POB_TOTAL_NUM": ":,.0f",
+                    col_y: ":,.1f",
+                    "QRESIDUOS_DOM": ":,.1f",
+                    "QRESIDUOS_NO_DOM": ":,.1f",
+                    "TOTAL_DIST": ":,.1f"
+                },
+                labels={
+                    "POB_TOTAL_NUM": "Población total (habitantes)",
+                    col_y: etiqueta_y,
+                    "PROVINCIA": "Provincia",
+                    "DEPARTAMENTO": "Departamento",
+                    "QRESIDUOS_DOM": "Domiciliarios (t)",
+                    "QRESIDUOS_NO_DOM": "No domiciliarios (t)",
+                    "TOTAL_DIST": "Total residuos (t)"
+                },
+                title=f"Relación entre población y residuos por distrito ({nombres(deps_disp)}, {periodo})"
+            )
+            fig_disp.update_traces(marker=dict(size=9, opacity=0.8, line=dict(width=1, color="white")))
+            fig_disp.update_xaxes(tickformat=",", hoverformat=",.0f")
+            fig_disp.update_yaxes(tickformat=",", hoverformat=",.1f")
+            fig_disp.update_layout(
+                template="plotly_white",
+                height=550
+            )
+
+            st.plotly_chart(fig_disp, use_container_width=True)
+
+# ==================================================================
+# 5. GENERACIÓN PER CÁPITA
+# ==================================================================
+else:
+    st.sidebar.header("Filtros: Per cápita")
+    periodo = elegir_uno("Seleccione el periodo (Año):", periodos,
+                         "per_pc", periodos[-1])
+    df_p = df[df["PERIODO"] == periodo]
+
+    nivel = elegir_uno("Nivel de detalle:",
+                       ["Departamentos", "Provincias", "Distritos"],
+                       "nivel_pc", "Departamentos")
+
+    if nivel == "Departamentos":
+        deps_pc = elegir_varios("Departamentos:", departamentos,
+                                "dep_pc_dep", departamentos)
     else:
-        fig_disp = px.scatter(
-            df_disp,
-            x="POB_TOTAL_NUM",
-            y=col_y,
-            color="PROVINCIA" if "PROVINCIA" in df_disp.columns else None,
-            hover_name="DISTRITO" if "DISTRITO" in df_disp.columns else None,
-            hover_data={
-                "POB_TOTAL_NUM": ":,.0f",
-                col_y: ":,.1f",
-                "QRESIDUOS_DOM": ":,.1f",
-                "QRESIDUOS_NO_DOM": ":,.1f",
-                "TOTAL_DIST": ":,.1f"
-            },
-            labels={
-                "POB_TOTAL_NUM": "Población total (habitantes)",
-                col_y: etiqueta_y,
-                "PROVINCIA": "Provincia",
-                "QRESIDUOS_DOM": "Domiciliarios (t)",
-                "QRESIDUOS_NO_DOM": "No domiciliarios (t)",
-                "TOTAL_DIST": "Total residuos (t)"
-            },
-            title=f"Relación entre población y residuos por distrito ({depto_disp}, {periodo})"
-        )
-        fig_disp.update_traces(marker=dict(size=9, opacity=0.8, line=dict(width=1, color="white")))
-        fig_disp.update_xaxes(tickformat=",", hoverformat=",.0f")
-        fig_disp.update_yaxes(tickformat=",", hoverformat=",.1f")
-        fig_disp.update_layout(
-            template="plotly_white",
-            height=550
-        )
+        deps_pc = elegir_varios("Departamentos:", departamentos,
+                                "dep_pc_otros", lima)
 
-        st.plotly_chart(fig_disp, use_container_width=True)
+    prov_pc = []
+    if nivel == "Distritos":
+        provincias_opc = sorted(
+            df_p[df_p["DEPARTAMENTO"].isin(deps_pc)]["PROVINCIA"].unique()
+        )
+        prov_pc = elegir_varios("Provincias:", provincias_opc,
+                                "prov_pc", provincias_opc[:1])
 
-with tab_pc:
+    datos_nivel = df_p[df_p["DEPARTAMENTO"].isin(deps_pc)].copy()
+
     if nivel == "Departamentos":
         titulo = f"Generación per cápita domiciliaria por departamento - {periodo}"
-        datos_nivel = df_p
-        columna = "DEPARTAMENTO"
+        datos_nivel["LUGAR"] = datos_nivel["DEPARTAMENTO"]
     elif nivel == "Provincias":
-        titulo = f"Generación per cápita domiciliaria por provincia de {dep_pc} - {periodo}"
-        datos_nivel = df_p[df_p["DEPARTAMENTO"] == dep_pc]
-        columna = "PROVINCIA"
+        titulo = (f"Generación per cápita domiciliaria por provincia "
+                  f"({nombres(deps_pc)}) - {periodo}")
+        datos_nivel["LUGAR"] = (datos_nivel["PROVINCIA"] + " ("
+                                + datos_nivel["DEPARTAMENTO"] + ")")
     else:
-        titulo = (f"Generación per cápita domiciliaria por distrito de "
-                  f"{prov_pc} ({dep_pc}) - {periodo}")
-        datos_nivel = df_p[(df_p["DEPARTAMENTO"] == dep_pc)
-                           & (df_p["PROVINCIA"] == prov_pc)]
-        columna = "DISTRITO"
+        titulo = (f"Generación per cápita domiciliaria por distrito "
+                  f"({nombres(prov_pc)}) - {periodo}")
+        datos_nivel = datos_nivel[datos_nivel["PROVINCIA"].isin(prov_pc)].copy()
+        datos_nivel["LUGAR"] = (datos_nivel["DISTRITO"] + " ("
+                                + datos_nivel["PROVINCIA"] + ")")
+
+    columna = "LUGAR"
 
     st.subheader(titulo)
     st.caption(
@@ -440,52 +508,55 @@ with tab_pc:
         "La línea roja marca el promedio nacional."
     )
 
-    pc = gpc_por_nivel(datos_nivel, columna)
-    nacional = gpc_por_nivel(df_p.assign(NACIONAL="Perú"), "NACIONAL")["GPC"].iloc[0]
-
-    if pc.empty:
-        st.info("No hay datos de generación per cápita para esta selección.")
+    if not deps_pc or (nivel == "Distritos" and not prov_pc):
+        st.info("Elija al menos una opción en la barra lateral.")
     else:
-        pc["COMPARACION"] = pc["GPC"].apply(
-            lambda v: "Sobre el promedio nacional" if v >= nacional
-            else "Bajo el promedio nacional"
-        )
-        pc["ETIQUETA"] = pc["GPC"].map("{:.2f}".format)
+        pc = gpc_por_nivel(datos_nivel, columna)
+        nacional = gpc_por_nivel(df_p.assign(NACIONAL="Perú"), "NACIONAL")["GPC"].iloc[0]
 
-        fig_pc = px.bar(
-            pc,
-            x="GPC",
-            y=columna,
-            orientation="h",
-            color="COMPARACION",
-            text="ETIQUETA",
-            color_discrete_map={"Sobre el promedio nacional": "#2E8B57",
-                                "Bajo el promedio nacional": "#A8D5BA"},
-            category_orders={columna: pc[columna].tolist()},
-            hover_data={"COMPARACION": False, "ETIQUETA": False,
-                        "GPC": ":.2f", "POB_URBANA": ":,.0f",
-                        "RES_DOM": ":,.0f"},
-            labels={"GPC": "kg por habitante al día", columna: "",
-                    "COMPARACION": "", "POB_URBANA": "Población urbana",
-                    "RES_DOM": "Residuos domiciliarios (t)"}
-        )
-        fig_pc.update_traces(textposition="outside", cliponaxis=False)
-        fig_pc.add_vline(
-            x=nacional,
-            line_dash="dash",
-            line_color="#C0392B",
-            annotation_text=f"Promedio nacional: {nacional:.2f}",
-            annotation_position="bottom right"
-        )
-        fig_pc.update_xaxes(range=[0, max(pc["GPC"].max(), nacional) * 1.2])
-        fig_pc.update_layout(
-            template="plotly_white",
-            height=max(350, 30 * len(pc) + 140),
-            legend=dict(orientation="h", y=1.02, x=0.5,
-                        xanchor="center", yanchor="bottom", title_text="")
-        )
+        if pc.empty:
+            st.info("No hay datos de generación per cápita para esta selección.")
+        else:
+            pc["COMPARACION"] = pc["GPC"].apply(
+                lambda v: "Sobre el promedio nacional" if v >= nacional
+                else "Bajo el promedio nacional"
+            )
+            pc["ETIQUETA"] = pc["GPC"].map("{:.2f}".format)
 
-        st.plotly_chart(fig_pc, use_container_width=True)
+            fig_pc = px.bar(
+                pc,
+                x="GPC",
+                y=columna,
+                orientation="h",
+                color="COMPARACION",
+                text="ETIQUETA",
+                color_discrete_map={"Sobre el promedio nacional": "#2E8B57",
+                                    "Bajo el promedio nacional": "#A8D5BA"},
+                category_orders={columna: pc[columna].tolist()},
+                hover_data={"COMPARACION": False, "ETIQUETA": False,
+                            "GPC": ":.2f", "POB_URBANA": ":,.0f",
+                            "RES_DOM": ":,.0f"},
+                labels={"GPC": "kg por habitante al día", columna: "",
+                        "COMPARACION": "", "POB_URBANA": "Población urbana",
+                        "RES_DOM": "Residuos domiciliarios (t)"}
+            )
+            fig_pc.update_traces(textposition="outside", cliponaxis=False)
+            fig_pc.add_vline(
+                x=nacional,
+                line_dash="dash",
+                line_color="#C0392B",
+                annotation_text=f"Promedio nacional: {nacional:.2f}",
+                annotation_position="bottom right"
+            )
+            fig_pc.update_xaxes(range=[0, max(pc["GPC"].max(), nacional) * 1.2])
+            fig_pc.update_layout(
+                template="plotly_white",
+                height=max(350, 30 * len(pc) + 140),
+                legend=dict(orientation="h", y=1.02, x=0.5,
+                            xanchor="center", yanchor="bottom", title_text="")
+            )
+
+            st.plotly_chart(fig_pc, use_container_width=True)
 
 st.markdown("---")
 st.caption("Fuente: Base de datos de residuos municipales. Elaboración propia.")
